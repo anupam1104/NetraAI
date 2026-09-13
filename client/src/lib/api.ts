@@ -54,10 +54,21 @@ export async function verifyClaim(
     }),
   });
 
-  const data = (await response.json()) as VerifyApiResponse;
+  const text = await response.text();
 
-  if (!response.ok || !data.ok) {
-    throw new Error(data.error ?? "Verification request failed");
+  let data: VerifyApiResponse;
+  try {
+    data = JSON.parse(text) as VerifyApiResponse;
+  } catch {
+    throw new Error(
+      response.ok
+        ? "Verification request failed"
+        : `Verification request failed (${response.status})`
+    );
+  }
+
+  if (!data || !data.ok) {
+    throw new Error(data?.error ?? `Verification request failed (${response.status})`);
   }
 
   return data;
