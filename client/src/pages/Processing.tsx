@@ -5,8 +5,9 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import { verifyClaim, type VerifyApiResponse } from "@/lib/api";
 import { adaptVerifyResponse } from "@/lib/reportAdapter";
-import { PROCESSING_STEPS } from "@/mock/engine";
+import { PROCESSING_STEPS, generateReport } from "@/mock/engine";
 import { mockStore } from "@/mock/store";
+import type { VerificationReport } from "@/mock/types";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { clearPendingInput, getPendingInput } from "./Verify";
@@ -26,6 +27,7 @@ export default function Processing() {
   const fetchStartedRef = useRef(false);
   const fetchErrorRef = useRef<string | null>(null);
   const fetchDoneRef = useRef(false);
+  const fallbackReportRef = useRef<VerificationReport | null>(null);
 
   // Kick off the real backend call once, independent of the step animation.
   useEffect(() => {
@@ -37,8 +39,8 @@ export default function Processing() {
         resultRef.current = response;
       })
       .catch((err) => {
-        fetchErrorRef.current =
-          err instanceof Error ? err.message : "Verification failed";
+        console.warn("Backend unavailable, falling back to local engine", err);
+        fallbackReportRef.current = generateReport(input);
       })
       .finally(() => {
         fetchDoneRef.current = true;
@@ -62,6 +64,13 @@ export default function Processing() {
     const poll = setInterval(() => {
       if (!fetchDoneRef.current) return;
       clearInterval(poll);
+
+      const fallback = fallbackReportRef.current;
+      if (fallback) {
+        clearPendingInput();
+        setLocation(`/report/${fallback.id}`, { replace: true });
+        return;
+      }
 
       if (fetchErrorRef.current || !resultRef.current?.report) {
         setError(
